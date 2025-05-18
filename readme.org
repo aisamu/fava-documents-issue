@@ -1,0 +1,201 @@
+#+PROPERTY: header-args :noweb yes :noweb-prefix no
+
+#+begin_comment
+- [[shell:rm **/*.beancount **/*.txt][Clear all files]]
+#+end_comment
+
+#+title: Broken linked-document links
+
+I'm having some trouble getting document links to work under split ledger/resources folders.
+
+When I have one file, things work nicely!
+When I move resources under a separate, sibling folder, journal links are broken.
+
+The use case is that the original sources/documents sometimes live in different mounts/disks/repos.
+
+#+begin_src text :tangle co-located-file.txt :exports none
+Simple co-located file that I'd like to be imported
+#+end_src
+
+#+name: preamble
+#+begin_src text :exports none
+option "operating_currency" "USD"
+
+2025-05-17 open Assets:Example
+2025-05-17 open Expenses:Example
+#+end_src
+
+* Examples
+** Co-located, explicit document
+A co-located file using an explicit document entry and a metadata entry works.
+
+- The Documents view is populated
+- There's an entry on the journal for the document
+- There's an entry on the journal with transaction with a document link
+- The journal link sends me to the document page for the correct document
+
+#+begin_src beancount :tangle co-located-via-document.beancount
+<<preamble>>
+
+2025-05-17 document Assets:Example "co-located-file.txt"
+2025-05-17 * "Working example"
+  document: "co-located-file.txt"
+  Assets:Example 1 USD
+  Expenses:Example
+#+end_src
+
+** =link_documents= plugin
+Adding the =fava.plugins.link_documents= plugin makes fava "join" the document and the posting entries on the journal, as expected!
+
+#+begin_src beancount :tangle co-located-via-document-with-plugin.beancount :exports none
+<<preamble>>
+
+plugin "fava.plugins.link_documents"
+
+2025-05-17 document Assets:Example "co-located-file.txt"
+2025-05-17 * "Working example"
+  document: "co-located-file.txt"
+  Assets:Example 1 USD
+  Expenses:Example
+#+end_src
+
+#+begin_src shell :exports results :results code :wrap src diff
+diff -u ./co-located-via-document.beancount ./co-located-via-document-with-plugin.beancount
+#+end_src
+
+#+RESULTS:
+#+begin_src diff
+--- ./co-located-via-document.beancount	2025-05-18 10:23:36.838091923 -0300
++++ ./co-located-via-document-with-plugin.beancount	2025-05-18 10:23:36.842727927 -0300
+@@ -3,6 +3,8 @@
+ 2025-05-17 open Assets:Example
+ 2025-05-17 open Expenses:Example
+
++plugin "fava.plugins.link_documents"
++
+ 2025-05-17 document Assets:Example "co-located-file.txt"
+ 2025-05-17 * "Working example"
+   document: "co-located-file.txt"
+#+end_src
+
+This is a very nice feature!
+
+#+begin_quote
+It'd also be lovely if fava could auto-generate the document directive using the date and the account from the posting, but I digress!
+#+end_quote
+
+** Splitting ledger and resources
+
+If we split the files into two separate folders, =/ledger/...= and =/resources/...=, following the journal links leads to ="Statement not found"= pages
+
+#+begin_src text :tangle resources/sibling-file.txt :exports none
+Simple nested file that I'd like to be imported
+#+end_src
+
+#+begin_src beancount :tangle ledger/sibling-via-document-with-plugin.beancount
+<<preamble>>
+
+plugin "fava.plugins.link_documents"
+
+2025-05-17 document Assets:Example "../resources/sibling-file.txt"
+2025-05-17 * "Non-working example"
+  document: "../resources/sibling-file.txt"
+  Assets:Example 1 USD
+  Expenses:Example
+#+end_src
+
+- The document view is correctly populated and I can see the file's contents,
+- The document posting is correctly joined with the transaction,
+- But following the link on the transaction leads to a "Statement not found" page.
+
+The behavior is identical regardless of how we invoke things:
+#+begin_src shell
+# Either
+fava ./ledger/sibling-via-document-with-plugin.beancount
+# Or
+cd ledger; fava sibling-via-document-with-plugin.beancount
+#+end_src
+
+*** Relative path variant 1
+
+Setting the metadata path against Fava's invocation path, like:
+
+#+begin_src beancount :tangle ledger/sibling-via-document-with-plugin-and-different-path.beancount :exports none
+<<preamble>>
+
+plugin "fava.plugins.link_documents"
+
+2025-05-17 document Assets:Example "../resources/sibling-file.txt"
+2025-05-17 * "Non-working example"
+  document: "resources/sibling-file.txt"
+  Assets:Example 1 USD
+  Expenses:Example
+#+end_src
+
+#+begin_src shell :exports results :results code :wrap src diff
+diff -u ./ledger/sibling-via-document-with-plugin.beancount ./ledger/sibling-via-document-with-plugin-and-different-path.beancount
+#+end_src
+
+Fails with:
+
+  #+begin_quote
+  Document not found: 'resources/sibling-file.txt'
+  #+end_quote
+
+*** Relative path variant 2
+
+Setting the document directive against Fava's invocation, like:
+
+#+begin_src beancount :tangle ledger/sibling-via-document-with-plugin-and-different-path-2.beancount :exports none
+<<preamble>>
+
+plugin "fava.plugins.link_documents"
+
+2025-05-17 document Assets:Example "resources/sibling-file.txt"
+2025-05-17 * "Non-working example"
+  document: "../resources/sibling-file.txt"
+  Assets:Example 1 USD
+  Expenses:Example
+#+end_src
+
+#+begin_src shell :exports results :results code :wrap src diff
+diff -u ./ledger/sibling-via-document-with-plugin.beancount ./ledger/sibling-via-document-with-plugin-and-different-path-2.beancount
+#+end_src
+
+Fails with both
+
+#+begin_quote
+File does not exist: "/.../fava-documents-issue/ledger/resources/sibling-file.txt"
+#+end_quote
+
+and
+
+#+begin_quote
+Document not found: '../resources/sibling-file.txt'
+#+end_quote
+
+** Nested non-sibling
+
+Nested resources under the same folder as the ledger do work!
+
+#+begin_src text :tangle ledger/resources/nested-file.txt :exports none
+Simple nested file that I'd like to be imported
+#+end_src
+
+#+begin_src beancount :tangle ledger/nested-via-document-with-plugin.beancount :exports none
+<<preamble>>
+
+plugin "fava.plugins.link_documents"
+
+2025-05-17 document Assets:Example "./resources/nested-file.txt"
+2025-05-17 * "Working example"
+  document: "./resources/nested-file.txt"
+  Assets:Example 1 USD
+  Expenses:Example
+#+end_src
+
+#+begin_src shell :exports results :results code :wrap src diff
+diff -u ./ledger/sibling-via-document-with-plugin.beancount ./ledger/nested-via-document-with-plugin.beancount
+#+end_src
+
+

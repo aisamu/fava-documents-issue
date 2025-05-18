@@ -1,0 +1,50 @@
+#+PROPERTY: header-args :noweb yes :noweb-prefix no
+
+#+begin_src shell :exports none
+mkdir -p sibling-example/{ledger,resources}
+#+end_src
+
+#+RESULTS:
+
+** Sibling ledger and resources
+
+If we split the files into two separate folders, =/ledger/...= and =/resources/...=, following the journal links leads to ="Statement not found"= pages
+
+#+begin_src text :tangle sibling-example/resources/sibling-file.txt :exports none
+Simple nested file that I'd like to be imported
+#+end_src
+
+#+begin_src beancount :tangle sibling-example/ledger/sibling-via-document-with-plugin.beancount
+option "operating_currency" "USD"
+
+2025-05-17 open Assets:Example
+2025-05-17 open Expenses:Example
+
+plugin "fava.plugins.link_documents"
+
+2025-05-17 document Assets:Example "../resources/sibling-file.txt"
+2025-05-17 * "Non-working example"
+  document: "../resources/sibling-file.txt"
+  Assets:Example 1 USD
+  Expenses:Example
+#+end_src
+
+- The document view is correctly populated and I can see the file's contents,
+- The document posting is correctly joined with the transaction,
+- But following the link on the transaction leads to a "Statement not found" page.
+
+#+begin_src shell :results output :exports code :wrap src text
+bean-query --version
+#+end_src
+
+#+begin_src text
+beanquery 0.1.dev1, beancount 3.1.0
+#+end_src
+
+#+begin_src shell :results output :exports code :wrap src text
+fava --version
+#+end_src
+
+#+begin_src text
+fava, version 1.30.1
+#+end_src
