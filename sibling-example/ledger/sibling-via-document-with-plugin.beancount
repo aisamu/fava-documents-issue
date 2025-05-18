@@ -1,0 +1,12 @@
+option "operating_currency" "USD"
+
+2025-05-17 open Assets:Example
+2025-05-17 open Expenses:Example
+
+plugin "fava.plugins.link_documents"
+
+2025-05-17 document Assets:Example "../resources/sibling-file.txt"
+2025-05-17 * "Non-working example"
+  document: "../resources/sibling-file.txt"
+  Assets:Example 1 USD
+  Expenses:Example
